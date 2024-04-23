@@ -1,0 +1,48 @@
+#include"pch.h"
+#include"user.h"
+#include<iostream>
+#include<regex>
+#include<vector>
+
+user u;
+
+std::string useremailRegex = "[_a-z0-9-]+(.[_a-z0-9-]+)*@[a-z0-9-]+(.[a- z0-9-]+)*(.[a-z]{2,4})";
+
+bool validate(std::string regexstr, std::string data){
+    return std::regex_match(data, std::regex(regexstr));
+}
+
+user::user(){}
+
+user::user(std::string email, std::string password, std::string username){
+    setemail(email);
+    setpassword(password);
+    setusername(username);
+}
+
+user::~user(){}
+
+void user::setemail(std::string email){
+    bool bvaild= validate(useemailRegex, email);
+    if (bvaild){
+        this->email =email;
+    }
+    else{
+        this->email = "default@default.com";
+    }
+    
+    std::string user::getemail(){
+    return this->email;
+    }
+}
+
+int main(){
+    std::vector<user> v;
+
+    std::str email=u.getemail();
+    std::cout<<"Email: ";
+    std::cin>>email;
+    user newUser(email, "password", "username"); 
+    v.push_back(newUser);
+    return 0;
+}
