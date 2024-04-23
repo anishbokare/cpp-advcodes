@@ -1,0 +1,64 @@
+#include <Windows.h>
+#include <vector>
+#include <string>
+#include <iostream>
+
+using namespace std;
+
+void getSubdirs(vector<string>& output, const string& path)
+{
+    WIN32_FIND_DATA findfiledata;
+    HANDLE hFind = INVALID_HANDLE_VALUE;
+
+    char fullpath[MAX_PATH];
+    GetFullPathName(path.c_str(), MAX_PATH, fullpath, 0);
+    string fp(fullpath);
+
+    hFind = FindFirstFile((LPCSTR)(fp + "\\*").c_str(), &findfiledata);
+    if (hFind != INVALID_HANDLE_VALUE)
+    {
+        do 
+        {
+            if ((findfiledata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0
+                && (findfiledata.cFileName[0] != '.'))
+            {
+                output.push_back(findfiledata.cFileName);
+            }
+        } 
+        while (FindNextFile(hFind, &findfiledata) != 0);
+    }
+}
+
+void getSubdirsRecursive(vector<string>& output, 
+                         const string& path,
+                         const string& prependStr)
+{
+    vector<string> firstLvl;
+    getSubdirs(firstLvl, path);
+    for (vector<string>::iterator i = firstLvl.begin(); 
+         i != firstLvl.end(); ++i)
+    {
+        output.push_back(prependStr + *i);
+        getSubdirsRecursive(output, 
+            path + string("\\") + *i + string("\\"),
+            prependStr + *i + string("\\"));
+    }
+}
+
+int main()
+{
+    string directory;
+    cout << "Enter directory path: ";
+    getline(cin, directory);
+
+    vector<string> subdirectories;
+    getSubdirsRecursive(subdirectories, directory, "");
+
+    cout << "Directories and subdirectories in " << directory << ":\n";
+    for (const auto& subdir : subdirectories)
+    {
+        cout << subdir << endl;
+    }
+
+    return 0;
+}
