@@ -1,0 +1,92 @@
+#include <iostream>
+#include <wiringPi.h>
+#include <azure/iothub_device_client.h>
+#include <azure/iothub_message.h>
+#include <azure/iothub_transportmqtt.h>
+#include "bme280.h"
+
+#define LED_PIN 7
+
+static const char* connectionString = "[enter your IoT Hub device connection string]";
+static bool sendMessage = true;
+static IOTHUB_DEVICE_CLIENT_HANDLE deviceClient = nullptr;
+static BME280 bme;
+
+void sendMessage();
+void startCallback(const char* payload, int payloadSize, char** responsePayload, int* responsePayloadSize, void* userContextCallback);
+void stopCallback(const char* payload, int payloadSize, char** responsePayload, int* responsePayloadSize, void* userContextCallback);
+
+int main() {
+    if (wiringPiSetup() == -1) {
+        std::cerr << "WiringPi setup failed!\n";
+        return 1;
+    }
+
+    pinMode(LED_PIN, OUTPUT);
+
+    if (!bme.begin()) {
+        std::cerr << "Could not find BME IoT sensor!!\n";
+        return 1;
+    }
+
+    if ((deviceClient = IoTHubDeviceClient_CreateFromConnectionString(connectionString, MQTT_Protocol)) == nullptr) {
+        std::cerr << "Failed to create IoT Hub client!!\n";
+        return 1;
+    }
+
+    IoTHubDeviceClient_SetDeviceMethodCallback(deviceClient, "start", startCallback, nullptr);
+    IoTHubDeviceClient_SetDeviceMethodCallback(deviceClient, "stop", stopCallback, nullptr);
+
+    while (true) {
+        sendMessage();
+        delay(2000);
+    }
+
+    IoTHubDeviceClient_Destroy(deviceClient);
+
+    return 0;
+}
+
+void sendMessage() {
+    if (!sendMessage)
+        return;
+
+    float temperature, humidity;
+    bme.getTemperatureAndHumidity(temperature, humidity);
+
+    char content[256];
+    sprintf(content, "{\"temperature\":%.2f,\"humidity\":%.2f}", temperature, humidity);
+
+    IOTHUB_MESSAGE_HANDLE messageHandle = IoTHubMessage_CreateFromString(content);
+    if (messageHandle == nullptr) {
+        std::cerr << "Failed to create message!!\n";
+        return;
+    }
+
+    if (IoTHubDeviceClient_SendEventAsync(deviceClient, messageHandle, nullptr, nullptr) != IOTHUB_CLIENT_OK) {
+        std::cerr << "Failed to send message to Azure IoT Hub!!\n";
+    } else {
+        digitalWrite(LED_PIN, HIGH);
+        delay(500);
+        digitalWrite(LED_PIN, LOW);
+        std::cout << "Message sent to Azure IoT Hub!!\n";
+    }
+
+    IoTHubMessage_Destroy(messageHandle);
+}
+
+void startCallback(const char* payload, int payloadSize, char** responsePayload, int* responsePayloadSize, void* userContextCallback) {
+    std::cout << "Received start command!\n";
+    sendMessage = true;
+    *responsePayloadSize = 22;
+    *responsePayload = (char*)malloc(*responsePayloadSize);
+    memcpy(*responsePayload, "Started sending data\n", *responsePayloadSize);
+}
+
+void stopCallback(const char* payload, int payloadSize, char** responsePayload, int* responsePayloadSize, void* userContextCallback) {
+    std::cout << "Received stop command!\n";
+    sendMessage = false;
+    *responsePayloadSize = 22;
+    *responsePayload = (char*)malloc(*responsePayloadSize);
+    memcpy(*responsePayload, "Stopped sending data", *responsePayloadSize);
+}
